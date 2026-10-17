@@ -1,0 +1,8 @@
+# PowerShell test and capture scripts
+*.ps1
+
+# Temporary scratch scripts
+r3fix_new.js
+test_*.html
+test_*.txt
+sim_out*.txt

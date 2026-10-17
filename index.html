@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>THE LAST CASE: The Silent Signal</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Three.js Local Engine -->
+    <script src="three.min.js"></script>
+    <script src="OrbitControls.js"></script>
+</head>
+<body>
+    <!-- Center Reticle for 3D Look -->
+    <div id="reticle"></div>
+
+    <!-- Subtle [E] INVESTIGATE Prompt -->
+    <div id="interaction-prompt">
+        <span class="key-badge">E</span>
+        <span id="prompt-label">INVESTIGATE</span>
+    </div>
+
+    <!-- Brief Controls Guide -->
+    <div id="controls-hint">
+        W A S D &nbsp; MOVE<br>
+        MOUSE &nbsp; &nbsp; LOOK<br>
+        E &nbsp; &nbsp; &nbsp; &nbsp; INVESTIGATE<br>
+        TAB &nbsp; &nbsp; &nbsp; CASE FILE
+    </div>
+
+    <!-- Blurred lab crime scene background (shown during Round 1 investigation) -->
+    <div id="lab-bg"></div>
+
+    <!-- 3D Canvas Viewport -->
+    <div id="viewport-3d"></div>
+
+    <!-- ==========================================================================
+         1. BOOT SEQUENCE & LOADING SCREEN
+         ========================================================================== -->
+    <div id="screen-boot">
+        <div class="boot-content">
+            <div class="boot-title">ORION RESEARCH FACILITY</div>
+            <div class="boot-subtitle">INVESTIGATION SYSTEM</div>
+            <div class="boot-bar-container">
+                <div class="boot-bar-fill" id="boot-bar-fill"></div>
+            </div>
+            <div class="boot-status">
+                <span>INITIALIZING SYSTEM...</span>
+                <span id="boot-percent">0%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         2. TEAM IDENTITY REGISTRATION
+         ========================================================================== -->
+    <div id="screen-registration">
+        <div class="reg-card">
+            <div class="reg-header">
+                <div class="reg-meta">ORION INVESTIGATION NETWORK</div>
+                <div class="reg-title">NEW INVESTIGATION TEAM</div>
+            </div>
+
+            <form class="reg-form" onsubmit="window.onTeamSubmit(event)">
+                <div class="reg-field">
+                    <label>TEAM NAME</label>
+                    <input type="text" id="input-team" placeholder="Enter team designation" required autocomplete="off" value="OMEGA DEDUCTION">
+                </div>
+                <div class="reg-field">
+                    <label>INVESTIGATOR 01 (Lead Detective)</label>
+                    <input type="text" id="input-p1" placeholder="Enter Investigator 01 name" required autocomplete="off" value="Agent Vance">
+                </div>
+                <div class="reg-field">
+                    <label>INVESTIGATOR 02 (Forensic Specialist)</label>
+                    <input type="text" id="input-p2" placeholder="Enter Investigator 02 name" required autocomplete="off" value="Agent Sarah">
+                </div>
+                <button type="submit" class="btn-primary">BEGIN INVESTIGATION</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Facility photo background (shown during cinematic story) -->
+    <div id="cinematic-bg"></div>
+
+    <!-- CSS Rain effect (shown during cinematic story) -->
+    <div id="rain-canvas"></div>
+
+    <!-- ==========================================================================
+         4. CINEMATIC CUTSCENE OVERLAY
+         ========================================================================== -->
+    <div id="cinematic-overlay">
+        <!-- Top Letterbox Bar -->
+        <div class="cinema-bar-top">
+            <div class="cinema-tag-box">
+                <span class="cinema-location-label" id="cinema-location-tag">ORION RESEARCH FACILITY</span>
+                <span>//</span>
+                <span class="cinema-time-label" id="cinema-time-tag">02:03 AM</span>
+            </div>
+            <div>RECORDING ARCHIVE // LEVEL-5</div>
+        </div>
+
+        <!-- Dialogue & Subtitle Box -->
+        <div class="cinema-dialogue-container">
+            <div class="cinema-speaker" id="cinema-speaker">DR. VIKRAM SEN</div>
+            <div class="cinema-quote" id="cinema-quote">"Something is wrong."</div>
+            <div class="cinema-narrative" id="cinema-narrative">
+                A remote research facility hidden deep within the mountain pass. Night. Rain. Cold fog.
+            </div>
+
+            <div class="cinema-actions">
+                <button class="btn-secondary" onclick="window.advanceCinematic()">NEXT SCENE [SPACE] ></button>
+                <button class="btn-secondary" style="color: var(--text-muted);" onclick="window.skipCinematic()">SKIP CINEMATIC >></button>
+            </div>
+        </div>
+
+        <!-- Bottom Letterbox Bar -->
+        <div class="cinema-bar-bottom">
+            <div>CASE 09: THE SILENT SIGNAL</div>
+            <div>STATUS: ENCRYPTED PLAYBACK</div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         12. TITLE REVEAL SCREEN
+         ========================================================================== -->
+    <div id="screen-title-reveal">
+        <div class="title-main">THE LAST CASE</div>
+        <div class="title-sub">CASE 09: THE SILENT SIGNAL</div>
+        <div>
+            <div class="title-round-badge">ROUND 01: THE CRIME SCENE</div>
+        </div>
+        <div class="title-question">WHAT HAPPENED INSIDE?</div>
+        <button class="btn-primary" onclick="window.enterCrimeScene()">ENTER THE FACILITY</button>
+    </div>
+
+    <!-- ==========================================================================
+         13. MINIMAL GAMEPLAY HUD
+         ========================================================================== -->
+    <div id="hud-overlay" style="display: none;">
+        <!-- Top Status Bar -->
+        <div class="hud-topbar">
+            <div class="hud-location-group">
+                <div class="hud-case-tag" id="hud-team-tag">TEAM: OMEGA DEDUCTION</div>
+                <div class="hud-room-name">ORION FACILITY // MAIN LABORATORY</div>
+            </div>
+
+            <div class="hud-actions-group">
+                <button class="hud-badge-btn" id="btn-sound" onclick="window.toggleSound()">AUDIO: ON</button>
+                <button class="hud-badge-btn" id="btn-ghost" onclick="window.summonVikramGhost()">
+                    <span style="color: var(--accent-amber);">👻 VIKRAM'S GHOST</span>
+                    <span id="ghost-hints-left" style="color: var(--accent-amber); font-weight: 600;">(5/5)</span>
+                </button>
+                <button class="hud-badge-btn" onclick="window.toggleSuspectsDossier()">
+                    <span>👥 SUSPECTS</span>
+                </button>
+                <button class="hud-badge-btn" onclick="window.toggleCaseFile()">
+                    <span>📁 CASE FILE [TAB]</span>
+                    <span id="hud-evidence-count" style="color: var(--accent-blue);">0 / 6</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Left Facility Map Selector (Section 19) -->
+        <div class="hud-map-nav">
+            <div class="map-header">FACILITY LOCATIONS</div>
+            <button class="map-room-btn active" id="map-btn-lab">
+                <span>● MAIN LABORATORY</span><span class="status-dot active"></span>
+            </button>
+            <button class="map-room-btn locked" id="map-btn-control">
+                <span>○ CONTROL ROOM</span><span class="status-dot locked"></span>
+            </button>
+            <button class="map-room-btn" id="map-btn-power">
+                <span>○ POWER ROOM</span><span class="status-dot active"></span>
+            </button>
+            <button class="map-room-btn" id="map-btn-office">
+                <span>○ VIKRAM'S OFFICE</span><span class="status-dot active"></span>
+            </button>
+            <button class="map-room-btn locked" id="map-btn-chamber">
+                <span>○ PROJECT 9 CHAMBER</span><span class="status-dot locked"></span>
+            </button>
+        </div>
+
+        <!-- Bottom Action Bar -->
+        <div class="hud-bottom-bar" id="bottom-bar">
+            <div class="hud-objective-box">
+                <div class="objective-tag">ROUND 01 OBJECTIVE</div>
+                <div class="objective-text" id="hud-objective-text">
+                    Investigate Vikram's locked laboratory. Examine 6 physical evidence items and reconstruct what happened during the 02:13 blackout.
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <button class="btn-secondary" onclick="window.openJumbledPuzzle()">🧩 RECOVERED MESSAGE</button>
+                <button class="btn-primary" onclick="window.openReconstruction()">RECONSTRUCT ROUND 01</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         17. EVIDENCE DISCOVERY CARD (MODAL)
+         ========================================================================== -->
+    <div id="modal-evidence-card">
+        <div class="evidence-dossier">
+            <div class="evidence-header">
+                <div>
+                    <div class="evidence-num" id="ev-num">EVIDENCE 01</div>
+                    <div class="evidence-title" id="ev-title">VIKRAM'S LAPTOP</div>
+                </div>
+                <div class="evidence-status-pill" id="ev-status">ACTIVE</div>
+            </div>
+
+            <div class="evidence-row">
+                <div class="evidence-label">LAST SYSTEM ACTIVITY</div>
+                <div class="evidence-val" id="ev-time">02:14 AM</div>
+            </div>
+
+            <div class="evidence-row">
+                <div class="evidence-label">SIGNIFICANCE</div>
+                <div class="evidence-val" id="ev-significance">
+                    System activity continued during the communication blackout.
+                </div>
+            </div>
+
+            <div class="evidence-row">
+                <div class="evidence-label">FORENSIC ANALYSIS</div>
+                <div class="evidence-val" id="ev-details">
+                    Command prompt shows an incomplete script: 'EXECUTE FORCE_PURGE_P9.SH'.
+                </div>
+            </div>
+
+            <div class="evidence-actions">
+                <button class="btn-secondary" onclick="window.closeModals()">CLOSE [ESC]</button>
+                <button class="btn-primary" id="btn-add-evidence" onclick="window.addCurrentEvidenceToFile()">ADD TO CASE FILE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         18. CASE FILE NOTEBOOK (TAB)
+         ========================================================================== -->
+    <div id="modal-case-file">
+        <div class="case-file-header">
+            <div>
+                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">CASE 09 — THE SILENT SIGNAL</div>
+                <div class="case-file-title">INVESTIGATION NOTEBOOK</div>
+            </div>
+            <button class="btn-secondary" onclick="window.toggleCaseFile()">✕</button>
+        </div>
+
+        <div class="evidence-list-container" id="case-file-list">
+            <!-- Populated via JS -->
+        </div>
+
+        <!-- Investigator Notes Section (Round 2 requirement) -->
+        <div class="investigator-notes-section">
+            <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-blue); letter-spacing: 1.5px; margin-bottom: 6px;">INVESTIGATOR NOTES:</div>
+            <textarea id="investigator-notes-input" placeholder="Record contradictions, timestamps, or theories here (e.g. Rohan modified security log; Arjun power test verified...)" rows="3"></textarea>
+        </div>
+
+        <div class="case-file-footer">
+            <span id="case-file-progress">0 / 6 EVIDENCE FOUND</span>
+            <span>PRESS TAB TO CLOSE</span>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         SUSPECTS DOSSIER MODAL
+         ========================================================================== -->
+    <div id="modal-suspects">
+        <div class="suspects-card">
+            <div class="case-file-header">
+                <div>
+                    <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-red); letter-spacing: 2px;">PROJECT 9 // PERSONNEL UNDER SCRUTINY</div>
+                    <div class="case-file-title">FACILITY SUSPECTS DOSSIER</div>
+                </div>
+                <button class="btn-secondary" onclick="window.closeModals()">✕ CLOSE</button>
+            </div>
+
+            <div class="suspects-grid" id="suspects-container">
+                <!-- Dynamically populated from GAME_DATA.suspects -->
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+                <button class="btn-secondary" onclick="window.closeModals()">RETURN TO INVESTIGATION</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         VIKRAM'S GHOST SPECTRAL DIALOGUE APPARITION MODAL (5 HELPS MAX)
+         ========================================================================== -->
+    <div id="modal-ghost">
+        <div class="ghost-card">
+            <div class="ghost-header">
+                <div class="ghost-avatar">
+                    <span class="ghost-icon">👻</span>
+                    <div class="ghost-pulse"></div>
+                </div>
+                <div>
+                    <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-blue); letter-spacing: 2px;">NEURAL ARCHIVE ECHO // DR. VIKRAM SEN</div>
+                    <div class="ghost-title">VIKRAM'S SPECTRAL PRESENCE</div>
+                    <div class="ghost-sub" id="ghost-uses-display">SPECTRAL MANIFESTATIONS REMAINING: 5 / 5</div>
+                </div>
+            </div>
+
+            <div class="ghost-speech-bubble" id="ghost-speech-text">
+                "Detectives... I do not have much time before my neural imprint dissolves into the facility mainframe. Look closer at the crime scene..."
+            </div>
+
+            <div class="ghost-clue-highlight" id="ghost-actionable-clue">
+                CLUE TARGET: Check the master security card near the foreground floor.
+            </div>
+
+            <div class="ghost-actions">
+                <button class="btn-primary" onclick="window.closeModals()">UNDERSTOOD, VIKRAM</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         20. JUMBLED MESSAGE PUZZLE
+         ========================================================================== -->
+    <div id="modal-jumbled-puzzle">
+        <div class="puzzle-container">
+            <div class="puzzle-header">
+                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-blue);">RESTRICTED BUFFER RECOVERY</div>
+                <div class="puzzle-title">RECOVERED TRANSMISSION FRAGMENTS</div>
+            </div>
+
+            <div class="puzzle-prompt">
+                An encrypted distress packet was broadcast during the 02:13 blackout. Reconstruct the message fragments into chronological order:
+            </div>
+
+            <!-- Ordered Slots -->
+            <div class="puzzle-slots-grid" id="puzzle-slots-grid">
+                <!-- Injected via JS -->
+            </div>
+
+            <!-- Scrambled Tile Bank -->
+            <div class="word-bank" id="puzzle-word-bank">
+                <!-- Injected via JS -->
+            </div>
+
+            <!-- Result Box -->
+            <div id="puzzle-result-box" style="display: none; margin-top: 20px; padding: 16px; background: rgba(16, 185, 129, 0.08); border: 1px solid var(--accent-emerald); border-radius: 4px;">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 24px;">
+                <button class="btn-secondary" onclick="window.closeModals()">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         22. ROUND 1 RECONSTRUCTION CONSOLE
+         ========================================================================== -->
+    <div id="modal-reconstruction">
+        <div class="reconstruction-card">
+            <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px; margin-bottom: 24px;">
+                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-blue);">CASE 09 FORENSIC AUDIT</div>
+                <div style="font-family: var(--font-heading); font-size: 1.4rem; font-weight: 600; color: #fff;">ROUND 01 — RECONSTRUCTION</div>
+                <div style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px;">Connect your collected physical evidence to establish the ground truth.</div>
+            </div>
+
+            <!-- Question 1 -->
+            <div class="recon-q-block">
+                <div class="recon-q-title">1. What happened during the 02:13 blackout window?</div>
+                <div id="recon-options-q1"></div>
+            </div>
+
+            <!-- Question 2 -->
+            <div class="recon-q-block">
+                <div class="recon-q-title">2. Which evidence proves the official 02:19 timeline is falsified?</div>
+                <div id="recon-options-q2"></div>
+            </div>
+
+            <!-- Question 3 -->
+            <div class="recon-q-block">
+                <div class="recon-q-title">3. What is currently the central locked-room mystery?</div>
+                <div id="recon-options-q3"></div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+                <button class="btn-secondary" onclick="window.closeModals()">CANCEL</button>
+                <button class="btn-primary" onclick="window.submitReconstruction()">SUBMIT DEDUCTION</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         23. ROUND 1 COMPLETION SCREEN
+         ========================================================================== -->
+    <div id="screen-round-complete" class="screen">
+        <div class="complete-badge">INVESTIGATION DATA VERIFIED</div>
+        <div class="complete-title">ROUND 01 COMPLETE</div>
+        <div class="complete-sub">
+            The crime scene has been analyzed. The electronic door lock was never opened. The estimated time of death was falsified. The investigation now moves to the facility's digital records.
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 0.9rem; color: var(--accent-blue); margin-bottom: 30px;">
+            NEW AREA UNLOCKED: CONTROL ROOM // ROUND 02: THE DIGITAL TRAIL
+        </div>
+        <button class="btn-primary" onclick="window.startRound2Transition()">PROCEED TO ROUND 02</button>
+    </div>
+
+    <!-- ==========================================================================
+         ROUND 2: CINEMATIC TRANSITION SCREEN
+         Fades into darkness, server audio initiates, reveals "WHO IS LYING?"
+         ========================================================================== -->
+    <div id="screen-r2-transition" class="screen">
+        <div class="r2-trans-content">
+            <div class="r2-trans-case">CASE 09 // THE SILENT SIGNAL</div>
+            <div class="r2-trans-badge">ROUND 01 COMPLETE</div>
+            <div class="r2-trans-p1">PHYSICAL EVIDENCE ANALYSIS COMPLETE</div>
+            <div class="r2-trans-p2">DIGITAL INVESTIGATION REQUIRED</div>
+            <div class="r2-trans-round">ROUND 02</div>
+            <div class="r2-trans-title">THE DIGITAL TRAIL</div>
+            <div class="r2-trans-question">WHO IS LYING?</div>
+            <div class="boot-bar-container" style="width: 320px; margin: 25px auto 0;">
+                <div class="boot-bar-fill" id="r2-trans-bar" style="width: 0%; background: var(--accent-blue);"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         ROUND 2: ACCESS LOGS TERMINAL MODAL (With ADMIN_01 Glitch Discovery)
+         ========================================================================== -->
+    <div id="modal-access-logs">
+        <div class="access-terminal-card">
+            <div class="case-file-header">
+                <div>
+                    <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-blue); letter-spacing: 2px;">SEC-CORE-01 // AUDIT TELEMETRY</div>
+                    <div class="case-file-title">ORION FACILITY ACCESS CONTROL SYSTEM</div>
+                </div>
+                <button class="btn-secondary" onclick="window.closeModals()">✕ CLOSE TERMINAL</button>
+            </div>
+
+            <!-- Terminal filter and status bar -->
+            <div class="term-status-bar">
+                <span>SYSTEM STATUS: <strong style="color: var(--accent-emerald);">ONLINE</strong></span>
+                <span>TIMELINE WINDOW: <strong>02:11:00 — 02:16:00 AM</strong></span>
+                <span>AUTHENTICATED LOGS: <strong id="log-count-display">6 RECORDS</strong></span>
+            </div>
+
+            <div class="access-logs-table-container">
+                <table class="access-logs-table">
+                    <thead>
+                        <tr>
+                            <th>TIMESTAMP</th>
+                            <th>USER IDENTITY</th>
+                            <th>LOCATION</th>
+                            <th>SYSTEM</th>
+                            <th>ACTION / PRIVILEGE</th>
+                            <th>INSPECT</th>
+                        </tr>
+                    </thead>
+                    <tbody id="access-logs-tbody">
+                        <!-- Injected via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Detail inspector for selected log entry -->
+            <div id="access-log-detail-box" style="display: none;" class="log-detail-panel">
+                <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-blue); margin-bottom: 4px;" id="detail-log-meta">LOG INSPECTION</div>
+                <div style="font-size: 0.95rem; color: #fff; line-height: 1.5;" id="detail-log-desc"></div>
+            </div>
+
+            <!-- ADMIN_01 Glitch Alert Banner -->
+            <div id="admin-glitch-banner" style="display: none;" class="admin-glitch-box">
+                <div class="admin-glitch-header">
+                    <span>⚠ SYSTEM ANOMALY DETECTED // 02:14:37</span>
+                    <span class="threat-CRITICAL" style="padding: 2px 8px; border-radius: 2px;">ROOT OVERRIDE</span>
+                </div>
+                <div style="font-family: var(--font-mono); font-size: 1.15rem; color: #fff; margin: 8px 0;">
+                    ADMIN ACCESS — SECURITY SYSTEM MODIFIED
+                </div>
+                <div style="font-size: 0.88rem; color: #cbd5e1; line-height: 1.5;">
+                    USER: <strong>ADMIN_01</strong> &nbsp;|&nbsp; IDENTITY: <strong>UNKNOWN / CONCEALED</strong> &nbsp;|&nbsp; STATUS: <strong>AUTHORIZED ROOT PRIVILEGES</strong>
+                </div>
+                <div style="margin-top: 10px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-emerald);">
+                    [✓] NEW EVIDENCE LOGGED: ADMIN_01 SECURITY MODIFICATION
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+                <button class="btn-primary" onclick="window.closeModals()">RETURN TO SECURITY WORKSTATION</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         ROUND 2: TECHNICAL EVENT RECONSTRUCTION PUZZLE (Drag/Drop Chrono Order)
+         ========================================================================== -->
+    <div id="modal-tech-puzzle">
+        <div class="tech-puzzle-card">
+            <div class="case-file-header">
+                <div>
+                    <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-emerald); letter-spacing: 2px;">DIGITAL EVENT RECONSTRUCTION</div>
+                    <div class="case-file-title">TECHNICAL LOG CHRONOLOGY</div>
+                </div>
+                <button class="btn-secondary" onclick="window.closeModals()">✕ CLOSE</button>
+            </div>
+
+            <div style="font-size: 0.92rem; color: var(--text-secondary); margin-bottom: 18px; line-height: 1.5;">
+                Reconstruct the sequence of technical anomalies recorded across the facility infrastructure during the blackout. Click or drag cards into chronological order:
+            </div>
+
+            <!-- Puzzle event card slots -->
+            <div class="tech-slots-container" id="tech-slots-container">
+                <!-- Injected via JS -->
+            </div>
+
+            <!-- Verification status -->
+            <div id="tech-puzzle-status" class="tech-status-notice" style="display: none;">
+                <!-- Result message -->
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px;">
+                <button class="btn-secondary" onclick="window.resetTechPuzzle()">RESET ORDER</button>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn-secondary" onclick="window.closeModals()">CANCEL</button>
+                    <button class="btn-primary" id="btn-verify-tech" onclick="window.verifyTechPuzzle()">VERIFY EVENT SEQUENCE</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         ROUND 2: RECOVERED DELETED COMMUNICATION MODAL
+         ========================================================================== -->
+    <div id="modal-deleted-message">
+        <div class="deleted-msg-card">
+            <div class="case-file-header">
+                <div>
+                    <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-blue); letter-spacing: 2px;">NEURAL BUFFER RESTORATION</div>
+                    <div class="case-file-title">RECOVERED DELETED COMMUNICATION</div>
+                </div>
+                <button class="btn-secondary" onclick="window.closeModals()">✕ CLOSE</button>
+            </div>
+
+            <!-- Recovery Progress Glitch Effect -->
+            <div id="msg-recovery-progress" class="recovery-progress-box">
+                <div style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-blue); margin-bottom: 8px;">
+                    DECRYPTING MEMORY CELL #09-V ... <span id="recovery-percent">47%</span>
+                </div>
+                <div class="boot-bar-container">
+                    <div class="boot-bar-fill" id="recovery-bar-fill" style="width: 47%; background: var(--accent-blue);"></div>
+                </div>
+            </div>
+
+            <!-- Revealed Content -->
+            <div id="msg-recovery-content" style="display: none;" class="recovered-text-container">
+                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px;">
+                    SENDER: DR. VIKRAM SEN &nbsp;|&nbsp; TIMESTAMP: 02:12:49 AM &nbsp;|&nbsp; STATUS: RESTORED FROM SLACK SECTOR
+                </div>
+                <div class="recovered-quote" id="rec-part1">
+                    "The problem isn't that Project 9 can predict people."
+                </div>
+                <div class="recovered-quote-highlight" id="rec-part2">
+                    "The problem is that it predicted me."
+                </div>
+                <div style="margin-top: 20px; padding: 12px 16px; background: rgba(56, 189, 248, 0.08); border-left: 3px solid var(--accent-blue); font-size: 0.88rem; color: #cbd5e1;">
+                    <span style="font-family: var(--font-mono); color: var(--accent-blue); font-weight: 600;">EVIDENCE LOGGED:</span>
+                    PROJECT 9 PREDICTION RECORD. What was Project 9's simulation projecting about Vikram's impending demise?
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 24px;">
+                <button class="btn-primary" onclick="window.closeModals()">CONFIRM EVIDENCE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         ROUND 2: DEDUCTION CONSOLE MODAL
+         ========================================================================== -->
+    <div id="modal-r2-deduction" class="modal-overlay">
+        <div class="reconstruction-card">
+            <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px; margin-bottom: 24px;">
+                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-blue);">ORION CONTROL ROOM // LEVEL-2 DEDUCTION</div>
+                <div class="case-file-title">ROUND 02 — THE DIGITAL TRAIL DEDUCTION</div>
+                <div style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px;">
+                    Analyze digital contradictions and determine which evidence can be trusted.
+                </div>
+            </div>
+
+            <!-- Q1 -->
+            <div class="recon-q-block">
+                <div class="recon-q-title">1. Which evidence definitively proves digital facility logs were manipulated?</div>
+                <div id="r2-recon-q1"></div>
+            </div>
+
+            <!-- Q2 -->
+            <div class="recon-q-block">
+                <div class="recon-q-title">2. What did the investigation into Rohan, Arjun, and Kabir's secrets establish?</div>
+                <div id="r2-recon-q2"></div>
+            </div>
+
+            <!-- Q3 -->
+            <div class="recon-q-block">
+                <div class="recon-q-title">3. What does the recovered communication reveal about Project 9?</div>
+                <div id="r2-recon-q3"></div>
+            </div>
+
+            <!-- Q4 -->
+            <div class="recon-q-block">
+                <div class="recon-q-title">4. What is the current state of the investigation as Round 2 concludes?</div>
+                <div id="r2-recon-q4"></div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button class="btn-secondary" onclick="window.closeModals()">CANCEL</button>
+                <button class="btn-primary" onclick="window.submitRound2Deduction()">SUBMIT DIGITAL DEDUCTION</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         ROUND 2: COMPLETION SCREEN
+         ========================================================================== -->
+    <div id="screen-r2-complete" class="screen">
+        <div class="complete-badge" style="border-color: var(--accent-blue); color: var(--accent-blue);">DIGITAL EVIDENCE ANALYSIS COMPLETE</div>
+        <div class="complete-title">ROUND 02 COMPLETE</div>
+        <div class="complete-sub">
+            The security system was manipulated under ADMIN_01 credentials. Several suspects concealed information, but for reasons distinct from the murder. Project 9 was calculating predictions of Vikram's own death.
+        </div>
+
+        <div class="r2-status-checklist">
+            <div class="checklist-item"><span>PHYSICAL EVIDENCE</span> <strong style="color: var(--accent-emerald);">✓ ANALYZED</strong></div>
+            <div class="checklist-item"><span>DIGITAL EVIDENCE</span> <strong style="color: var(--accent-emerald);">✓ ANALYZED</strong></div>
+            <div class="checklist-item"><span>SUSPECT STATEMENTS</span> <strong style="color: var(--accent-emerald);">✓ COMPARED</strong></div>
+            <div class="checklist-item"><span>PROJECT 9</span> <strong style="color: var(--accent-amber);">⚠ CONNECTION DETECTED</strong></div>
+        </div>
+
+        <div style="font-family: var(--font-heading); font-size: 1.25rem; font-weight: 600; color: #fff; margin-bottom: 8px;">
+            "THE DIGITAL TRAIL ENDS HERE."
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-muted); margin-bottom: 28px;">
+            "THE FINAL ANSWER IS STILL HIDDEN."
+        </div>
+
+        <div style="font-family: var(--font-mono); font-size: 0.95rem; color: var(--accent-blue); margin-bottom: 28px;">
+            ROUND 03: THE FINAL DEDUCTION // UNLOCKED
+        </div>
+
+        <button class="btn-primary" id="btn-proceed-r3" onclick="window.startRound3Transition()">PROCEED TO ROUND 03</button>
+    </div>
+
+
+
+    <!-- ROUND 3: EVIDENCE BOARD MODAL -->
+    <div id="modal-r3-evidence-board" class="modal-overlay" style="display:none;z-index:100000;">
+        <div class="modal-panel" style="max-width:900px;width:98%;max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;">
+            <div class="modal-header">
+                <span class="modal-icon">&#128375;</span>
+                <span>EVIDENCE BOARD &mdash; CASE 09</span>
+                <button class="modal-close-btn" onclick="window.closeModals()">&#x2715;</button>
+            </div>
+            <div style="display:flex;gap:8px;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,.07);">
+                <button id="boardTabBtnWeb" class="board-tab-btn active" onclick="window.switchBoardTab('web')">CONNECTION WEB</button>
+                <button id="boardTabBtnDossier" class="board-tab-btn" onclick="window.switchBoardTab('dossier')">CASE DOSSIER</button>
+            </div>
+            <div id="boardTabWeb" style="display:block;padding:16px 20px;flex:1;">
+                <div style="font-family:var(--font-mono);font-size:.7rem;color:#38bdf8;margin-bottom:10px;letter-spacing:.14em;">CLICK A NODE, THEN CLICK ANOTHER NODE TO CONNECT THEM</div>
+                <div id="boardWebCanvasContainer" style="position:relative;width:100%;height:460px;background:rgba(2,6,18,.8);border:1px solid rgba(56,189,248,.15);border-radius:4px;overflow:hidden;">
+                    <svg id="boardSvgLines" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></svg>
+                    <div id="boardNodesContainer" style="position:absolute;inset:0;"></div>
+                </div>
+                <div id="boardConnectionStatus" style="margin-top:10px;font-family:var(--font-mono);font-size:.72rem;color:#94a3b8;min-height:22px;">CONNECTIONS VERIFIED: <span style="color:#10b981;font-weight:700;">0</span> / 6</div>
+                <div id="boardCompletionBanner" style="display:none;margin-top:12px;background:rgba(16,185,129,.1);border:1px solid #10b981;border-radius:4px;padding:12px 16px;font-family:var(--font-mono);font-size:.78rem;color:#10b981;font-weight:700;">&#x2713; EVIDENCE CHAIN VERIFIED &mdash; PROCEED TO MAKE YOUR ACCUSATION.</div>
+            </div>
+            <div id="boardTabDossier" style="display:none;padding:16px 20px;">
+                <div style="font-family:var(--font-mono);font-size:.72rem;color:#38bdf8;margin-bottom:12px;">CASE DOSSIER &mdash; KEY EVIDENCE SUMMARY</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div style="border:1px solid rgba(239,68,68,.3);border-radius:4px;padding:12px 14px;"><div style="color:#ef4444;font-size:.68rem;margin-bottom:5px;">VICTIM</div><div style="color:#fff;font-size:.84rem;font-weight:700;">Dr. Vikram Sen</div><div style="color:#94a3b8;font-size:.73rem;margin-top:4px;">Found dead in P9 Chamber at 02:19 AM.</div></div>
+                    <div style="border:1px solid rgba(56,189,248,.3);border-radius:4px;padding:12px 14px;"><div style="color:#38bdf8;font-size:.68rem;margin-bottom:5px;">CRITICAL LEAD</div><div style="color:#fff;font-size:.84rem;font-weight:700;">ADMIN_01 Access</div><div style="color:#94a3b8;font-size:.73rem;margin-top:4px;">Root credentials used to disable cameras &amp; unlock chamber. Identity concealed.</div></div>
+                    <div style="border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:12px 14px;"><div style="color:#f59e0b;font-size:.68rem;margin-bottom:5px;">PROJECT 9</div><div style="color:#fff;font-size:.84rem;font-weight:700;">Predicted Vikram's Death</div><div style="color:#94a3b8;font-size:.73rem;margin-top:4px;">At 20:13 PM, 6 hours before the incident. Only ADMIN_01 received the alert.</div></div>
+                    <div style="border:1px solid rgba(16,185,129,.3);border-radius:4px;padding:12px 14px;"><div style="color:#10b981;font-size:.68rem;margin-bottom:5px;">BIOMETRIC ANOMALY</div><div style="color:#fff;font-size:.84rem;font-weight:700;">Eighth Signature</div><div style="color:#94a3b8;font-size:.73rem;margin-top:4px;">8th unaccounted scan recorded at 02:06 AM inside the P9 chamber.</div></div>
+                </div>
+            </div>
+            <div style="padding:10px 20px;border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:flex-end;">
+                <button class="btn-primary" onclick="window.openFinalAccusation()">&#x2696; MAKE FINAL ACCUSATION</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ROUND 3: ACCUSATION MODAL -->
+    <div id="modal-r3-accusation" class="modal-overlay" style="display:none;z-index:2000000;">
+        <div class="modal-panel r3-accusation-panel">
+            <div class="modal-header">
+                <span class="modal-icon">&#x2696;</span>
+                <span>FINAL ACCUSATION &mdash; CASE 09</span>
+                <button class="modal-close-btn" onclick="window.closeModals()">&#x2715;</button>
+            </div>
+            <div class="modal-body">
+                <p class="r3-acc-intro">You have gathered all available evidence. This is your final opportunity to name the killer, explain the method, provide the motive, and cite the proof.</p>
+                <div class="r3-acc-section"><div class="r3-acc-section-title">01 &mdash; WHO KILLED DR. VIKRAM SEN?</div><div class="accusation-suspect-grid" id="accWhoGrid"></div></div>
+                <div class="r3-acc-section"><div class="r3-acc-section-title">02 &mdash; HOW WAS IT DONE?</div><div class="r3-acc-options" id="accHowGrid"></div></div>
+                <div class="r3-acc-section"><div class="r3-acc-section-title">03 &mdash; WHY WAS IT DONE?</div><div class="r3-acc-options" id="accWhyGrid"></div></div>
+                <div class="r3-acc-section"><div class="r3-acc-section-title">04 &mdash; WHAT EVIDENCE PROVES IT? <span style="font-weight:400;color:var(--text-muted);font-size:.78rem;">(select at least 4)</span></div><div class="acc-evidence-grid" id="accEvidenceGrid"></div></div>
+                <div id="r3AccError" class="r3-acc-error" style="display:none;"></div>
+                <button class="btn-primary" style="margin-top:20px;width:100%;" onclick="window.submitFinalAccusation()">SUBMIT FINAL ACCUSATION</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ROUND 3: REVEAL SCREEN -->
+    <div id="screen-r3-reveal" class="screen" style="display:none;background:#000;flex-direction:column;align-items:center;justify-content:flex-start;padding:40px 20px;overflow-y:auto;">
+        <div style="max-width:720px;width:100%;text-align:center;" id="r3RevealContent"></div>
+    </div>
+
+    <!-- ROUND 3: P9 TWIST SCREEN -->
+    <div id="screen-r3-p9twist" class="screen" style="display:none;background:#000;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;">
+        <div style="max-width:680px;width:100%;font-family:var(--font-mono);">
+            <div style="font-size:.65rem;color:#38bdf8;letter-spacing:.25em;margin-bottom:18px;">PROJECT_9 / FINAL_TRANSMISSION</div>
+            <div id="p9TwistOutput" class="p9-twist-terminal" style="background:#000;border:1px solid rgba(56,189,248,.3);border-radius:4px;padding:20px;min-height:160px;font-size:.82rem;color:#38bdf8;line-height:2;"></div>
+            <button id="p9TwistContinueBtn" class="btn-primary" style="margin-top:24px;display:none;" onclick="window.showCaseClosedScreen()">VIEW CASE REPORT &#x2192;</button>
+        </div>
+    </div>
+
+    <!-- ROUND 3: CASE CLOSED SCREEN -->
+    <div id="screen-r3-complete" class="screen" style="display:none;background:#000507;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;text-align:center;">
+        <div class="r3-case-closed-badge">CASE 09 // THE SILENT SIGNAL // CLOSED</div>
+        <div class="r3-case-closed-title">CASE CLOSED</div>
+        <div class="r3-case-closed-sub">ANIKA RAO &mdash; CONVICTED</div>
+        <div class="r3-verdict-block">
+            <div class="r3-verdict-row">
+                <span class="r3-v-label">VICTIM</span>
+                <span class="r3-v-value">Dr. Vikram Sen</span>
+            </div>
+            <div class="r3-verdict-row">
+                <span class="r3-v-label">PERPETRATOR</span>
+                <span class="r3-v-value" id="closedWho" style="color:#ef4444;font-weight:700;">Anika Rao</span>
+            </div>
+            <div class="r3-verdict-row">
+                <span class="r3-v-label">METHOD</span>
+                <span class="r3-v-value" id="closedHow">Used ADMIN_01 root authorization to bypass cameras and sealed chamber during blackout</span>
+            </div>
+            <div class="r3-verdict-row">
+                <span class="r3-v-label">MOTIVE</span>
+                <span class="r3-v-value" id="closedWhy">Prevent Vikram's shutdown order from terminating Project 9</span>
+            </div>
+        </div>
+        <div class="r3-final-question">
+            "YOU FOUND THE MURDERER.<br>BUT DID ANIKA CHOOSE TO COMMIT THE MURDER &mdash; OR DID PROJECT 9 CHOOSE FOR HER?"
+        </div>
+        <div class="r3-final-question-sub">
+            PROJECT 9 STATUS: ACTIVE &nbsp;|&nbsp; CASE STATUS: CLOSED
+        </div>
+    </div>
+    <!-- Application Engine Scripts (MUST load before fix script) -->
+    <script src="audio.js"></script>
+    <script src="gameData.js"></script>
+    <script src="gameDataR2.js"></script>
+    <script src="gameDataR3.js"></script>
+    <script src="scene3d.js"></script>
+    <script src="game.js"></script>
+
+    <!-- Round 3 Fix Script -->
+    <script>
+/* ROUND 3 CLEAN FIX — replaces all previous patches */
+(function () {
+    'use strict';
+
+    /* ─── grab the game object (declared with const in game.js, NOT window.game) ─── */
+    function getG() { return (typeof game !== 'undefined') ? game : null; }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       1.  STATION MODAL  –  position:fixed, z-index above everything
+    ════════════════════════════════════════════════════════════════════════ */
+    function buildStationModal() {
+        if (document.getElementById('r3sm')) return;
+        var m = document.createElement('div');
+        m.id = 'r3sm';
+        m.style.cssText = 'display:none;position:fixed;inset:0;z-index:2000000;background:rgba(2,6,18,.96);' +
+            'align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto;' +
+            'font-family:"Share Tech Mono",monospace;';
+        m.innerHTML =
+            '<div style="max-width:880px;width:100%;background:#080f1f;border:1px solid rgba(56,189,248,.3);' +
+            'border-radius:6px;margin:auto;">' +
+            '<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;' +
+            'border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;background:#080f1f;z-index:2;">' +
+            '<span style="color:#38bdf8;font-size:1.1rem;">◈</span>' +
+            '<span id="r3sm-title" style="flex:1;font-size:.85rem;font-weight:700;letter-spacing:.12em;color:#f1f5f9;"></span>' +
+            '<button onclick="window.r3Close()" style="background:none;border:1px solid rgba(239,68,68,.45);' +
+            'color:#ef4444;padding:4px 14px;border-radius:3px;cursor:pointer;font-size:.82rem;font-family:inherit;">✕ CLOSE</button>' +
+            '</div>' +
+            '<div id="r3sm-body" style="padding:24px 28px;"></div>' +
+            '</div>';
+        m.addEventListener('click', function (e) { if (e.target === m) window.r3Close(); });
+        document.body.appendChild(m);
+    }
+
+    window.r3Open = function (title, html) {
+        buildStationModal();
+        document.getElementById('r3sm-title').textContent = title;
+        document.getElementById('r3sm-body').innerHTML = html;
+        document.getElementById('r3sm').style.display = 'flex';
+    };
+
+    window.r3Close = function () {
+        var m = document.getElementById('r3sm');
+        if (m) m.style.display = 'none';
+        /* also hide old modal variants just in case */
+        ['modal-r3-station','r3-dynamic-modal'].forEach(function(id){
+            var el = document.getElementById(id); if (el) el.style.display = 'none';
+        });
+    };
+
+    /* keep old aliases alive */
+    window.closeR3StationModal = window.r3Close;
+    window.r3CloseStationModal = window.r3Close;
+    window.showR3InlineModal   = window.r3Open;
+    window.r3ShowStationModal  = window.r3Open;
+
+    /* ════════════════════════════════════════════════════════════════════════
+       2.  STATION ROUTER
+    ════════════════════════════════════════════════════════════════════════ */
+    window.openR3Station = function (sid) {
+        if (window.r3ConclusionActive) return;
+        window.r3Close();
+        var G = getG(); if (G && G.r3StationsViewed) G.r3StationsViewed.add(sid);
+        if (window.sound && window.sound.playKeypress) window.sound.playKeypress();
+        var btnMap = {term_p9:'r3btn_p9',term_eighth:'r3btn_eighth',term_hidden_ws:'r3btn_hidden',
+                      term_archive:'r3btn_archive',term_anika_link:'r3btn_anika',term_board:'r3btn_board'};
+        if (btnMap[sid]) { var b = document.getElementById(btnMap[sid]); if (b) b.classList.add('unlocked'); }
+        switch (sid) {
+            case 'term_p9':         r3StationP9();       break;
+            case 'term_eighth':     r3StationEighth();   break;
+            case 'term_hidden_ws':  r3StationWorkstation(); break;
+            case 'term_archive':    r3StationArchive();  break;
+            case 'term_anika_link': r3StationAnika();    break;
+            case 'term_board':      window.openFinalEvidenceBoard(); break;
+        }
+    };
+
+    /* ════════════════════════════════════════════════════════════════════════
+       3.  STATION 1 — P9 PREDICTION
+    ════════════════════════════════════════════════════════════════════════ */
+    function r3StationP9() {
+        var D = window.GAME_DATA_R3; if (!D) return;
+        var p = D.p9Prediction; var r = p.record;
+        var G = getG();
+        if (G) { G.r3Evidence.add('ev_prediction'); G.r3Evidence.add('ev_admin'); }
+
+        var flagRows = r.flaggedBehaviours.map(function (f) {
+            return '<div style="display:flex;gap:10px;margin-bottom:8px;padding:8px 10px;' +
+                'background:rgba(56,189,248,.05);border-left:2px solid #38bdf8;">' +
+                '<span style="color:#38bdf8;font-size:.68rem;white-space:nowrap;">[' + f.tag + ']</span>' +
+                '<span style="color:#cbd5e1;font-size:.77rem;line-height:1.5;">' + f.text + '</span></div>';
+        }).join('');
+
+        var html =
+            '<div style="color:#38bdf8;font-size:.68rem;letter-spacing:.2em;margin-bottom:14px;">STATION 01 — PROJECT 9 AUTONOMOUS SYSTEM // CLASSIFIED</div>' +
+            '<div style="font-size:1.1rem;font-weight:800;color:#fff;margin-bottom:18px;">PROJECT_9 / INCIDENT_001</div>' +
+            '<table style="width:100%;border-collapse:collapse;margin-bottom:18px;">' +
+            row('SYSTEM ID', p.systemId) +
+            row('STATUS', '<span style="color:#ef4444;font-weight:700;">' + p.status + '</span>') +
+            row('SUBJECT', r.subject) +
+            row('PREDICTED EVENT', '<span style="color:#ef4444;font-weight:700;">DEATH</span>') +
+            row('PREDICTED TIME', '<span style="color:#ef4444;font-weight:700;">' + r.predictedEventTime + '</span>') +
+            row('PREDICTION CREATED', '<span style="color:#f59e0b;font-weight:700;">' + r.analysisCreated + ' PM — SIX HOURS BEFORE INCIDENT</span>') +
+            row('CLASSIFIED BY', r.classifiedBy) +
+            '</table>' +
+            '<div style="font-size:.7rem;color:#38bdf8;letter-spacing:.14em;margin-bottom:8px;">FLAGGED BEHAVIOURS:</div>' +
+            flagRows +
+            box('#ef4444', 'SYSTEM NOTE', r.systemNote) +
+            box('#10b981', "INVESTIGATOR'S NOTE", p.clue) +
+            '<div style="background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.2);border-radius:4px;padding:14px 16px;margin-top:10px;">' +
+            '<div style="font-size:.72rem;color:#38bdf8;margin-bottom:10px;">SELECT YOUR HYPOTHESIS:</div>' +
+            '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+            '<button id="r3hyp-a" onclick="window.r3Hypothesis(\'predicted\')" style="' + hypBtn() + '">[A] PROJECT 9 AUTONOMOUSLY PREDICTED THE MURDER</button>' +
+            '<button id="r3hyp-b" onclick="window.r3Hypothesis(\'used\')" style="' + hypBtn() + '">[B] SOMEONE USED PROJECT 9 TO PLAN THE MURDER</button>' +
+            '</div>' +
+            '<div id="r3hyp-fb" style="color:#10b981;font-size:.72rem;margin-top:8px;display:none;">✔ HYPOTHESIS RECORDED.</div>' +
+            '</div>';
+        window.r3Open('PROJECT 9 — INCIDENT PREDICTION LOG', html);
+        /* restore hypothesis selection */
+        var G2 = getG();
+        if (G2 && G2.r3PredictionHypothesis) window.r3Hypothesis(G2.r3PredictionHypothesis);
+    }
+
+    window.r3Hypothesis = function (h) {
+        var G = getG(); if (G) G.r3PredictionHypothesis = h;
+        var a = document.getElementById('r3hyp-a');
+        var b = document.getElementById('r3hyp-b');
+        if (a) { a.style.borderColor = h === 'predicted' ? '#38bdf8' : 'rgba(255,255,255,.15)'; a.style.background = h === 'predicted' ? 'rgba(56,189,248,.15)' : 'rgba(255,255,255,.04)'; }
+        if (b) { b.style.borderColor = h === 'used'      ? '#38bdf8' : 'rgba(255,255,255,.15)'; b.style.background = h === 'used'      ? 'rgba(56,189,248,.15)' : 'rgba(255,255,255,.04)'; }
+        var fb = document.getElementById('r3hyp-fb'); if (fb) fb.style.display = 'block';
+    };
+    window.selectP9Hypothesis = window.r3Hypothesis;
+
+    /* ════════════════════════════════════════════════════════════════════════
+       4.  STATION 2 — EIGHTH SIGNATURE
+    ════════════════════════════════════════════════════════════════════════ */
+    function r3StationEighth() {
+        var D = window.GAME_DATA_R3; if (!D) return;
+        var es = D.eighthSignature;
+        var G = getG(); if (G) G.r3Evidence.add('ev_eighthsig');
+
+        var tableRows = es.entries.map(function (e) {
+            var anom = e.status.indexOf('ANOMALY') !== -1;
+            return '<tr style="' + (anom ? 'background:rgba(239,68,68,.08);' : '') + '">' +
+                '<td style="padding:7px 8px;color:#64748b;font-size:.7rem;">' + e.id.toUpperCase() + '</td>' +
+                '<td style="padding:7px 8px;color:' + (anom ? '#ef4444' : '#e2e8f0') + ';font-size:.77rem;font-weight:' + (anom ? '700' : '400') + ';">' + e.person + '</td>' +
+                '<td style="padding:7px 8px;color:#e2e8f0;font-size:.77rem;">' + e.time + '</td>' +
+                '<td style="padding:7px 8px;color:' + (anom ? '#ef4444' : '#10b981') + ';font-size:.72rem;font-weight:700;">' + e.status + '</td>' +
+                '<td style="padding:7px 8px;color:#94a3b8;font-size:.67rem;">' + (e.note || '—') + '</td></tr>';
+        }).join('');
+
+        var html =
+            '<div style="color:#38bdf8;font-size:.68rem;letter-spacing:.18em;margin-bottom:14px;">STATION 02 — BIOMETRIC ACCESS SYSTEM // ANOMALY REPORT</div>' +
+            '<div style="font-size:1.05rem;font-weight:800;color:#fff;margin-bottom:18px;">' + es.title + '</div>' +
+            '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">' +
+            row('FACILITY ZONE', es.facilityZone) +
+            row('AUTHORISED USERS', '<span style="color:#10b981;font-weight:700;">' + es.authorizedUsers + '</span>') +
+            row('SIGNATURES RECORDED', '<span style="color:#ef4444;font-weight:700;">' + es.totalSignatures + ' — ONE UNACCOUNTED FOR</span>') +
+            '</table>' +
+            '<div style="overflow-x:auto;margin-bottom:18px;">' +
+            '<table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid rgba(255,255,255,.09);">' +
+            ['ID','PERSON','TIME','STATUS','NOTES'].map(function(h){ return '<th style="text-align:left;padding:7px 8px;color:#38bdf8;font-size:.68rem;">' + h + '</th>'; }).join('') +
+            '</tr></thead><tbody>' + tableRows + '</tbody></table></div>' +
+            box('#ef4444', '⚠ ANOMALY REPORT', es.anomalyNote) +
+            '<div style="background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.25);border-radius:4px;padding:14px 16px;margin-top:10px;">' +
+            '<div style="color:#38bdf8;font-size:.7rem;letter-spacing:.12em;margin-bottom:6px;">🔍 INVESTIGATOR\'S QUESTION</div>' +
+            '<div style="color:#f1f5f9;font-size:.88rem;font-weight:700;">IF NOBODY ENTERED THE CHAMBER, WHERE DID THE EIGHTH SIGNATURE COME FROM?</div>' +
+            '</div>';
+        window.r3Open('BIOMETRIC ANOMALY — EIGHTH SIGNATURE', html);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       5.  STATION 3 — HIDDEN WORKSTATION
+    ════════════════════════════════════════════════════════════════════════ */
+    function r3StationWorkstation() {
+        var D = window.GAME_DATA_R3; if (!D) return;
+        var ws = D.hiddenWorkstation;
+        var G = getG();
+        if (G) { G.r3Evidence.add('ev_hiddenws'); G.r3Evidence.add('ev_admin'); }
+
+        var files = ws.archiveFiles.map(function (f) {
+            var btn = f.decryptable
+                ? '<button onclick="window.r3DecryptFile(\'' + f.id + '\')" style="' +
+                  'background:rgba(56,189,248,.12);border:1px solid #38bdf8;color:#38bdf8;' +
+                  'padding:4px 12px;border-radius:3px;cursor:pointer;font-size:.7rem;font-family:inherit;">DECRYPT</button>'
+                : '<span style="color:#475569;font-size:.7rem;">🔒 ' + (f.note || 'ENCRYPTED') + '</span>';
+            return '<div style="display:flex;align-items:center;justify-content:space-between;' +
+                'padding:9px 12px;border:1px solid rgba(56,189,248,.18);border-radius:4px;margin-bottom:7px;">' +
+                '<span style="color:#38bdf8;font-size:.77rem;">' + f.label + '</span>' + btn + '</div>';
+        }).join('');
+
+        var html =
+            '<div style="color:#38bdf8;font-size:.68rem;letter-spacing:.18em;margin-bottom:14px;">STATION 03 — HIDDEN WORKSTATION // NODE H-07</div>' +
+            '<div style="font-size:1.05rem;font-weight:800;color:#fff;margin-bottom:18px;">' + ws.title + '</div>' +
+            '<table style="width:100%;border-collapse:collapse;margin-bottom:14px;">' +
+            row('MAC ADDRESS', ws.macAddress) +
+            row('LAST LOGIN', '<span style="color:#ef4444;font-weight:700;">' + ws.lastLogin + '</span>') +
+            row('LAST ACTIVITY', '<span style="color:#f59e0b;font-weight:700;">' + ws.lastActivity + '</span>') +
+            row('DISCOVERED BY', ws.discoveredBy) +
+            '</table>' +
+            '<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:4px;' +
+            'padding:10px 14px;margin-bottom:14px;font-size:.8rem;color:#f1f5f9;">' +
+            '⚠ PROJECT 9 BEHAVIOUR: OUTSIDE NORMAL PARAMETERS<br>' +
+            '<span style="color:#94a3b8;font-size:.74rem;">The system was no longer simply observing researchers.</span></div>' +
+            '<div style="font-size:.7rem;color:#38bdf8;letter-spacing:.14em;margin-bottom:9px;">ARCHIVE FILES — CLICK TO DECRYPT:</div>' +
+            files +
+            '<div id="r3ws-content" style="margin-top:14px;"></div>' +
+            box('#10b981', "INVESTIGATOR'S NOTE", ws.clue);
+        window.r3Open('HIDDEN WORKSTATION — DECRYPT FILES', html);
+    }
+
+    window.r3DecryptFile = function (fileId) {
+        var D = window.GAME_DATA_R3; if (!D) return;
+        var arcId = fileId.replace('ws_file_', 'arc_');
+        var entry = D.p9Archive.find(function (a) { return a.id === arcId; });
+        if (!entry) return;
+        var G = getG(); if (G) G.r3Evidence.add('ev_p9decision');
+        var area = document.getElementById('r3ws-content');
+        if (!area) return;
+        area.innerHTML =
+            '<div style="font-size:.65rem;color:#38bdf8;margin-bottom:6px;letter-spacing:.14em;">DECRYPTING... ██████████ 100%</div>' +
+            '<div style="font-size:.88rem;font-weight:700;color:#fff;margin-bottom:10px;">' + entry.title + '</div>' +
+            '<pre style="font-family:inherit;font-size:.71rem;color:#94a3b8;white-space:pre-wrap;line-height:1.7;' +
+            'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:4px;padding:12px;">' +
+            entry.content + '</pre>';
+    };
+    window.openWorkstationFile = window.r3DecryptFile;
+
+    /* ════════════════════════════════════════════════════════════════════════
+       6.  STATION 4 — P9 ARCHIVE
+    ════════════════════════════════════════════════════════════════════════ */
+    function r3StationArchive() {
+        var D = window.GAME_DATA_R3; if (!D) return;
+        var G = getG(); if (G) G.r3Evidence.add('ev_p9decision');
+        var files = D.p9Archive.map(function (f) {
+            return '<div style="display:flex;align-items:center;justify-content:space-between;' +
+                'padding:9px 12px;border:1px solid rgba(56,189,248,.15);border-radius:4px;margin-bottom:7px;">' +
+                '<span style="color:#38bdf8;font-size:.77rem;">' + f.filename + '</span>' +
+                '<button onclick="window.r3ReadArchive(\'' + f.id + '\')" style="' +
+                'background:rgba(56,189,248,.1);border:1px solid #38bdf8;color:#38bdf8;' +
+                'padding:4px 12px;border-radius:3px;cursor:pointer;font-size:.7rem;font-family:inherit;">READ</button></div>';
+        }).join('');
+        var html =
+            '<div style="color:#38bdf8;font-size:.68rem;letter-spacing:.18em;margin-bottom:14px;">STATION 04 — PROJECT 9 ARCHIVE // RECOVERED FILES</div>' +
+            '<div style="font-size:1rem;font-weight:800;color:#fff;margin-bottom:16px;">PROJECT 9 DATA ARCHIVE — 6 FILES RECOVERED</div>' +
+            files + '<div id="r3arc-content" style="margin-top:14px;"></div>';
+        window.r3Open('P9 ARCHIVE — RECOVERED DATA', html);
+    }
+
+    window.r3ReadArchive = function (fileId) {
+        var D = window.GAME_DATA_R3; if (!D) return;
+        var f = D.p9Archive.find(function (x) { return x.id === fileId; });
+        if (!f) return;
+        var G = getG(); if (G) G.r3Evidence.add('ev_p9msg');
+        var area = document.getElementById('r3arc-content');
+        if (!area) return;
+        area.innerHTML =
+            '<div style="font-size:.88rem;font-weight:700;color:#fff;margin-bottom:10px;">' + f.title + '</div>' +
+            '<pre style="font-family:inherit;font-size:.71rem;color:#94a3b8;white-space:pre-wrap;line-height:1.7;' +
+            'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:4px;padding:12px;">' +
+            f.content + '</pre>';
+    };
+    window.openArchiveFile = window.r3ReadArchive;
+
+    /* ════════════════════════════════════════════════════════════════════════
+       7.  STATION 5 — ANIKA CONNECTION
+    ════════════════════════════════════════════════════════════════════════ */
+    function r3StationAnika() {
+        var D = window.GAME_DATA_R3; if (!D) return;
+        var ac = D.anikaConnection;
+        var G = getG();
+        if (G) { G.r3Evidence.add('ev_statement'); G.r3Evidence.add('ev_accesscard'); G.r3Evidence.add('ev_motive'); G.r3Evidence.add('ev_timeline'); }
+        var secs = ac.sections.map(function (s) {
+            var col = s.flag === 'MATCH' ? '#10b981' : s.flag === 'CONTRADICTION' ? '#ef4444' : '#f59e0b';
+            return '<div style="border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:12px 14px;margin-bottom:10px;">' +
+                '<div style="display:flex;justify-content:space-between;margin-bottom:7px;">' +
+                '<span style="color:#38bdf8;font-size:.7rem;letter-spacing:.08em;">' + s.label + '</span>' +
+                '<span style="color:' + col + ';font-size:.67rem;font-weight:700;border:1px solid ' + col + ';padding:2px 7px;border-radius:2px;">' + s.flag + '</span></div>' +
+                '<div style="color:#cbd5e1;font-size:.78rem;line-height:1.6;white-space:pre-wrap;">' + s.content + '</div></div>';
+        }).join('');
+        var html =
+            '<div style="color:#38bdf8;font-size:.68rem;letter-spacing:.18em;margin-bottom:14px;">STATION 05 — EVIDENCE COMPARISON // ANIKA RAO / ADMIN_01</div>' +
+            '<div style="font-size:1rem;font-weight:800;color:#fff;margin-bottom:16px;">' + ac.title + '</div>' +
+            secs +
+            box('#ef4444', '▶ SUMMARY DEDUCTION', ac.summaryClue);
+        window.r3Open('EVIDENCE COMPARISON — ANIKA RAO', html);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       8.  EVIDENCE BOARD
+    ════════════════════════════════════════════════════════════════════════ */
+    var BOARD = { sel: null, done: {} }; /* sel = currently selected nodeId */
+
+    window.openFinalEvidenceBoard = function () {
+        if (window.r3ConclusionActive) return;
+        window.r3Close();
+        var G = getG(); if (G) G.r3StationsViewed.add('term_board');
+        var btn = document.getElementById('r3btn_board'); if (btn) btn.classList.add('unlocked');
+        /* restore state */
+        if (G && G.r3VerifiedConnections) { BOARD.done = {}; G.r3VerifiedConnections.forEach(function(k){ BOARD.done[k]=true; }); }
+        var modal = document.getElementById('modal-r3-evidence-board');
+        if (!modal) return;
+        modal.style.display = 'flex';
+        setTimeout(function () {
+            /* switch to web tab */
+            var tw = document.getElementById('boardTabWeb'), td = document.getElementById('boardTabDossier');
+            var bw = document.getElementById('boardTabBtnWeb'), bd = document.getElementById('boardTabBtnDossier');
+            if (tw) tw.style.display = 'block'; if (td) td.style.display = 'none';
+            if (bw) bw.classList.add('active'); if (bd) bd.classList.remove('active');
+            renderBoard();
+        }, 80);
+    };
+
+    window.switchBoardTab = function (tab) {
+        var tw = document.getElementById('boardTabWeb'), td = document.getElementById('boardTabDossier');
+        var bw = document.getElementById('boardTabBtnWeb'), bd = document.getElementById('boardTabBtnDossier');
+        if (tab === 'web') {
+            if (tw) tw.style.display = 'block'; if (td) td.style.display = 'none';
+            if (bw) bw.classList.add('active'); if (bd) bd.classList.remove('active');
+            renderBoard();
+        } else {
+            if (tw) tw.style.display = 'none'; if (td) td.style.display = 'block';
+            if (bw) bw.classList.remove('active'); if (bd) bd.classList.add('active');
+        }
+    };
+
+    function renderBoard() {
+        var D = window.GAME_DATA_R3; if (!D) return;
+        var wrap = document.getElementById('boardWebCanvasContainer');
+        var nodeWrap = document.getElementById('boardNodesContainer');
+        var svg = document.getElementById('boardSvgLines');
+        if (!wrap || !nodeWrap || !svg) return;
+
+        nodeWrap.innerHTML = '';
+        svg.innerHTML = '';
+
+        var W = wrap.offsetWidth || 750;
+        var H = wrap.offsetHeight || 460;
+        svg.setAttribute('width', W); svg.setAttribute('height', H);
+
+        D.connectionNodes.forEach(function (n) {
+            var el = document.createElement('button');
+            el.id = 'bn_' + n.id;
+            el.textContent = n.label;
+            var isDone = Object.keys(BOARD.done).some(function(k){ return k.indexOf(n.id) !== -1; });
+            el.style.cssText =
+                'position:absolute;left:' + ((n.x/750)*100) + '%;top:' + ((n.y/440)*100) + '%;' +
+                'transform:translate(-50%,-50%);padding:8px 13px;background:#060e1c;' +
+                'border:2px solid ' + n.color + ';color:#fff;font-family:inherit;font-size:.68rem;' +
+                'font-weight:700;letter-spacing:.05em;border-radius:4px;cursor:pointer;' +
+                'pointer-events:auto;white-space:nowrap;z-index:5;' +
+                'box-shadow:0 0 ' + (isDone ? '18px #10b981' : '8px ' + n.color + '55') + ';' +
+                (isDone ? 'border-color:#10b981;' : '');
+            el.addEventListener('click', function (e) { e.stopPropagation(); boardClick(n.id); });
+            nodeWrap.appendChild(el);
+        });
+
+        drawLines(D, W, H);
+        updateBoardStatus(D);
+    }
+
+    function boardClick(id) {
+        var D = window.GAME_DATA_R3; if (!D) return;
+        var stat = document.getElementById('boardConnectionStatus');
+
+        if (!BOARD.sel) {
+            /* first click — highlight */
+            BOARD.sel = id;
+            var el = document.getElementById('bn_' + id);
+            if (el) { el.style.outline = '3px solid #38bdf8'; el.style.outlineOffset = '3px'; }
+            if (stat) stat.innerHTML = '<span style="color:#38bdf8;">● SELECTED: ' +
+                id.replace('node_','').replace(/_/g,' ').toUpperCase() + ' — CLICK ANOTHER NODE TO CONNECT</span>';
+            return;
+        }
+
+        var a = BOARD.sel, b = id;
+        /* deselect */
+        var elA = document.getElementById('bn_' + a);
+        if (elA) { elA.style.outline = ''; elA.style.outlineOffset = ''; }
+        BOARD.sel = null;
+
+        if (a === b) return;
+
+        var key = [a,b].sort().join('___');
+        var valid = D.requiredConnections.some(function(p){ return (p[0]===a&&p[1]===b)||(p[0]===b&&p[1]===a); });
+
+        if (valid) {
+            var isNew = !BOARD.done[key];
+            BOARD.done[key] = true;
+            var G = getG(); if (G && G.r3VerifiedConnections) G.r3VerifiedConnections.add(key);
+            if (isNew && window.sound && window.sound.playEvidenceConnect) window.sound.playEvidenceConnect();
+            /* re-render to update colours and lines */
+            var W = (document.getElementById('boardWebCanvasContainer')||{}).offsetWidth || 750;
+            var H = (document.getElementById('boardWebCanvasContainer')||{}).offsetHeight || 460;
+            /* highlight both nodes */
+            [document.getElementById('bn_'+a), document.getElementById('bn_'+b)].forEach(function(el){
+                if (el) { el.style.boxShadow = '0 0 18px #10b981'; el.style.borderColor = '#10b981'; }
+            });
+            drawLines(D, W, H);
+            updateBoardStatus(D);
+        } else {
+            if (stat) {
+                stat.innerHTML = '<span style="color:#ef4444;font-weight:700;">✗ NO DIRECT CONNECTION BETWEEN THESE NODES — TRY ANOTHER PAIR</span>';
+                setTimeout(function(){ updateBoardStatus(D); }, 2200);
+            }
+            if (window.sound && window.sound.playGlitch) window.sound.playGlitch();
+        }
+    }
+
+    function drawLines(D, W, H) {
+        var svg = document.getElementById('boardSvgLines'); if (!svg) return;
+        var nodeMap = {};
+        D.connectionNodes.forEach(function(n){ nodeMap[n.id] = {x:(n.x/750)*W, y:(n.y/440)*H}; });
+        svg.innerHTML = Object.keys(BOARD.done).map(function(key){
+            var pts = key.split('___');
+            var a = nodeMap[pts[0]], b = nodeMap[pts[1]];
+            if (!a||!b) return '';
+            return '<line x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'" '+
+                'stroke="#10b981" stroke-width="2.5" stroke-dasharray="6,3" '+
+                'style="filter:drop-shadow(0 0 5px #10b981);"/>';
+        }).join('');
+    }
+
+    function updateBoardStatus(D) {
+        var count = Object.keys(BOARD.done).length;
+        var need  = 6;
+        var stat  = document.getElementById('boardConnectionStatus');
+        var banner= document.getElementById('boardCompletionBanner');
+        if (stat) stat.innerHTML = 'CONNECTIONS VERIFIED: <span style="color:#10b981;font-weight:700;">' + count + '</span> / ' + need;
+        if (count >= need && banner) banner.style.display = 'block';
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       9.  FINAL ACCUSATION
+    ════════════════════════════════════════════════════════════════════════ */
+    window.openFinalAccusation = function () {
+        if (window.r3ConclusionActive) return;
+        /* prerequisite: 3 stations visited */
+        var G = getG();
+        if (G && G.r3StationsViewed) {
+            var req = ['term_p9','term_eighth','term_hidden_ws','term_archive','term_anika_link'];
+            var vis = req.filter(function(s){ return G.r3StationsViewed.has(s); });
+            if (vis.length < 3) {
+                var obj = document.getElementById('hud-objective-text');
+                if (obj) {
+                    var saved = obj.innerHTML;
+                    obj.innerHTML = '<span style="color:#f59e0b;font-weight:700;">⚠ INVESTIGATE AT LEAST ' + (3-vis.length) + ' MORE STATION(S) FIRST.</span>';
+                    setTimeout(function(){ obj.innerHTML = saved; }, 3000);
+                }
+                return;
+            }
+        }
+
+        /* close everything */
+        window.r3Close();
+        var board = document.getElementById('modal-r3-evidence-board');
+        if (board) board.style.display = 'none';
+
+        var D = window.GAME_DATA_R3; if (!D) return;
+        var fa = D.finalAccusation;
+
+        /* populate WHO */
+        var whoGrid = document.getElementById('accWhoGrid');
+        if (whoGrid) {
+            whoGrid.innerHTML = fa.whoOptions.map(function(name){
+                var esc = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+                var sel = G && G.r3AccWho === name;
+                return '<button class="acc-suspect-btn" onclick="window.r3Who(\'' + esc + '\',this)"' +
+                    (sel ? ' style="border-color:#38bdf8;background:rgba(56,189,248,.18);color:#38bdf8;"' : '') +
+                    '>' + name + '</button>';
+            }).join('');
+        }
+        /* populate HOW */
+        var howGrid = document.getElementById('accHowGrid');
+        if (howGrid) {
+            howGrid.innerHTML = fa.howOptions.map(function(h){
+                var sel = G && G.r3AccHow === h.id;
+                return '<button class="acc-option-btn" onclick="window.r3How(\'' + h.id + '\',this)"' +
+                    (sel ? ' style="border-color:#38bdf8;background:rgba(56,189,248,.1);"' : '') +
+                    '>' + h.text + '</button>';
+            }).join('');
+        }
+        /* populate WHY */
+        var whyGrid = document.getElementById('accWhyGrid');
+        if (whyGrid) {
+            whyGrid.innerHTML = fa.whyOptions.map(function(w){
+                var sel = G && G.r3AccWhy === w.id;
+                return '<button class="acc-option-btn" onclick="window.r3Why(\'' + w.id + '\',this)"' +
+                    (sel ? ' style="border-color:#38bdf8;background:rgba(56,189,248,.1);"' : '') +
+                    '>' + w.text + '</button>';
+            }).join('');
+        }
+        /* populate EVIDENCE */
+        var evGrid = document.getElementById('accEvidenceGrid');
+        if (evGrid) {
+            evGrid.innerHTML = fa.evidenceOptions.map(function(e){
+                var isSel = G && G.r3AccEvidence && G.r3AccEvidence.has(e.id);
+                return '<div class="acc-ev-item' + (isSel ? ' selected' : '') +
+                    '" onclick="window.r3Ev(\'' + e.id + '\',this)">' +
+                    '<span class="acc-ev-check">' + (isSel ? '✓' : '') + '</span>' +
+                    '<span>' + e.text + '</span></div>';
+            }).join('');
+        }
+
+        var errEl = document.getElementById('r3AccError');
+        if (errEl) { errEl.style.display = 'none'; errEl.innerHTML = ''; }
+
+        var acc = document.getElementById('modal-r3-accusation');
+        if (acc) acc.style.display = 'flex';
+    };
+
+    /* selection handlers */
+    window.r3Who = function (name, el) {
+        var G = getG(); if (G) G.r3AccWho = name;
+        document.querySelectorAll('.acc-suspect-btn').forEach(function(b){ b.style.borderColor=''; b.style.background=''; b.style.color=''; });
+        if (el) { el.style.borderColor='#38bdf8'; el.style.background='rgba(56,189,248,.18)'; el.style.color='#38bdf8'; }
+    };
+    window.r3How = function (id, el) {
+        var G = getG(); if (G) G.r3AccHow = id;
+        document.querySelectorAll('#accHowGrid .acc-option-btn').forEach(function(b){ b.style.borderColor=''; b.style.background=''; });
+        if (el) { el.style.borderColor='#38bdf8'; el.style.background='rgba(56,189,248,.1)'; }
+    };
+    window.r3Why = function (id, el) {
+        var G = getG(); if (G) G.r3AccWhy = id;
+        document.querySelectorAll('#accWhyGrid .acc-option-btn').forEach(function(b){ b.style.borderColor=''; b.style.background=''; });
+        if (el) { el.style.borderColor='#38bdf8'; el.style.background='rgba(56,189,248,.1)'; }
+    };
+    window.r3Ev = function (id, el) {
+        var G = getG(); if (!G || !G.r3AccEvidence) return;
+        var chk = el ? el.querySelector('.acc-ev-check') : null;
+        if (G.r3AccEvidence.has(id)) {
+            G.r3AccEvidence.delete(id);
+            if (el) el.classList.remove('selected');
+            if (chk) chk.textContent = '';
+        } else {
+            G.r3AccEvidence.add(id);
+            if (el) el.classList.add('selected');
+            if (chk) chk.textContent = '✓';
+        }
+    };
+
+    /* keep old aliases alive for any onclick still using them */
+    window.accSelectWho      = function(n){ window.r3Who(n, document.querySelector('.acc-suspect-btn[onclick*="'+n+'"]')); };
+    window.accSelectHow      = window.r3How;
+    window.accSelectWhy      = window.r3Why;
+    window.accToggleEvidence = window.r3Ev;
+    window.r3AccSelectWho    = window.r3Who;
+    window.r3AccSelectHow    = window.r3How;
+    window.r3AccSelectWhy    = window.r3Why;
+    window.r3AccToggleEv     = window.r3Ev;
+
+    /* ════════════════════════════════════════════════════════════════════════
+       10. SUBMIT FINAL ACCUSATION
+    ════════════════════════════════════════════════════════════════════════ */
+    window.submitFinalAccusation = function () {
+        var D  = window.GAME_DATA_R3;
+        var G  = getG();
+        var fa = D ? D.finalAccusation : null;
+        if (!D || !G || !fa) { alert('Game data not loaded. Refresh the page.'); return; }
+
+        var errEl = document.getElementById('r3AccError');
+        function showFeedback(html) {
+            if (!errEl) return;
+            errEl.innerHTML = html;
+            errEl.style.display = 'block';
+            setTimeout(function(){
+                var panel = document.querySelector('#modal-r3-accusation .r3-accusation-panel');
+                if (panel) panel.scrollTop = panel.scrollHeight;
+                else errEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
+            }, 60);
+        }
+
+        /* read selections */
+        var who = G.r3AccWho  || null;
+        var how = G.r3AccHow  || null;
+        var why = G.r3AccWhy  || null;
+        var ev  = G.r3AccEvidence || new Set();
+
+        /* completeness guard */
+        if (!who) { showFeedback('<span style="color:#ef4444;font-weight:700;">⚠ Select a SUSPECT (WHO) first.</span>'); return; }
+        if (!how) { showFeedback('<span style="color:#ef4444;font-weight:700;">⚠ Select a METHOD (HOW) first.</span>'); return; }
+        if (!why) { showFeedback('<span style="color:#ef4444;font-weight:700;">⚠ Select a MOTIVE (WHY) first.</span>'); return; }
+        if (ev.size < fa.minEvidenceCount) {
+            showFeedback('<span style="color:#ef4444;font-weight:700;">⚠ Select at least ' + fa.minEvidenceCount + ' evidence items.</span>'); return;
+        }
+
+        /* evaluate */
+        var whoOk = (who === fa.correctWho);
+        var howOk = (how === fa.correctHow);
+        var whyOk = (why === fa.correctWhy);
+        var evHit = fa.requiredEvidence.filter(function(e){ return ev.has(e); });
+        var evOk  = evHit.length >= Math.ceil(fa.requiredEvidence.length * 0.6);
+        var isCorrect = whoOk && howOk && whyOk && evOk;
+
+        if (isCorrect) {
+            /* ── CORRECT ── show result banner, then start conclusion */
+            if (window.sound && window.sound.playCinematicImpact) window.sound.playCinematicImpact();
+            showFeedback(
+                '<div style="background:rgba(16,185,129,.12);border:2px solid #10b981;border-radius:6px;' +
+                'padding:22px 24px;text-align:center;">' +
+                '<div style="font-size:2rem;margin-bottom:10px;">✓</div>' +
+                '<div style="color:#10b981;font-weight:800;font-size:1.05rem;letter-spacing:.14em;margin-bottom:8px;">' +
+                'FINAL ACCUSATION — CORRECT</div>' +
+                '<div style="color:#e2e8f0;font-size:.88rem;line-height:1.6;margin-bottom:14px;">' +
+                'Your evidence supports the conclusion.</div>' +
+                '<div style="color:#94a3b8;font-size:.72rem;font-family:inherit;letter-spacing:.1em;">' +
+                'BEGINNING FINAL SEQUENCE…</div>' +
+                '</div>'
+            );
+            /* disable submit so it cannot fire again */
+            var btn = document.querySelector('#modal-r3-accusation .btn-primary[onclick*="submitFinalAccusation"]');
+            if (btn) { btn.disabled = true; btn.textContent = 'VERDICT CONFIRMED…'; }
+            setTimeout(function(){ window.startConclusion(); }, 2200);
+
+        } else {
+            /* ── WRONG ── show feedback, remain on accusation screen */
+            if (window.sound && window.sound.playGlitch) window.sound.playGlitch();
+            var fb =
+                '<div style="background:rgba(239,68,68,.1);border:2px solid rgba(239,68,68,.5);' +
+                'border-radius:6px;padding:18px 20px;">' +
+                '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">' +
+                '<span style="font-size:1.8rem;line-height:1;">❌</span>' +
+                '<div><div style="color:#ef4444;font-weight:800;font-size:.95rem;letter-spacing:.1em;">' +
+                'FINAL ACCUSATION — INCORRECT</div>' +
+                '<div style="color:#94a3b8;font-size:.78rem;margin-top:3px;">' +
+                'The evidence does not support this conclusion.</div>' +
+                '</div></div>';
+            if (!whoOk) fb += '<div style="margin-bottom:7px;font-size:.8rem;">• <strong>SUSPECT:</strong> Not supported by access logs. Re-examine the stations.</div>';
+            else        fb += '<div style="margin-bottom:7px;font-size:.8rem;color:#10b981;">• <strong>SUSPECT:</strong> Correct — but method, motive, or evidence is wrong.</div>';
+            if (!howOk) fb += '<div style="margin-bottom:7px;font-size:.8rem;">• <strong>METHOD:</strong> Contradicts the security bypass records at Station 03.</div>';
+            if (!whyOk) fb += '<div style="margin-bottom:7px;font-size:.8rem;">• <strong>MOTIVE:</strong> Unsupported. Review Stations 04 &amp; 05.</div>';
+            if (!evOk)  fb += '<div style="margin-bottom:7px;font-size:.8rem;">• <strong>EVIDENCE:</strong> Missing items linking ADMIN_01 to the suspect.</div>';
+            fb +=
+                '<button onclick="window.returnToInvestigation()" ' +
+                'style="margin-top:16px;width:100%;background:rgba(56,189,248,.15);border:1px solid #38bdf8;' +
+                'color:#38bdf8;padding:11px;border-radius:4px;cursor:pointer;font-size:.82rem;' +
+                'font-family:inherit;font-weight:700;letter-spacing:.06em;">' +
+                '← RETURN TO INVESTIGATION</button>';
+            fb += '</div>';
+            showFeedback(fb);
+        }
+    };
+
+    window.returnToInvestigation = function () {
+        var acc = document.getElementById('modal-r3-accusation');
+        if (acc) acc.style.display = 'none';
+        /* re-enable submit button */
+        var btn = document.querySelector('#modal-r3-accusation button.btn-primary');
+        if (btn && btn.disabled) { btn.disabled = false; btn.textContent = 'SUBMIT FINAL ACCUSATION'; }
+        window.openFinalEvidenceBoard();
+    };
+
+    /* ════════════════════════════════════════════════════════════════════════
+       11. startConclusion — THE ONLY entry point to the cinematic sequence.
+           Must ONLY be called from the correct-accusation branch above.
+    ════════════════════════════════════════════════════════════════════════ */
+    window.r3ConclusionActive = false;
+
+    window.startConclusion = function () {
+        window.r3ConclusionActive = true;
+        /* close every panel/modal so nothing overlaps the cinematic */
+        nukeAllModals();
+        /* hide the R3 HUD toolbar so investigation buttons cannot be clicked */
+        var hud = document.getElementById('hud-overlay');
+        if (hud) hud.style.display = 'none';
+        /* disable all R3 bottom toolbar buttons */
+        document.querySelectorAll('.r3-tool-btn, .r3-accuse-btn').forEach(function(b){
+            b.disabled = true;
+            b.style.pointerEvents = 'none';
+        });
+        /* delegate to game.js reveal (which shows screen-r3-reveal then P9 twist) */
+        if (window.runAnikaReveal) window.runAnikaReveal();
+    };
+
+    /* kill every overlay before cinematic */
+    function nukeAllModals() {
+        ['r3sm','modal-r3-station','r3-dynamic-modal',
+         'modal-r3-evidence-board','modal-r3-accusation','modal-ghost'].forEach(function(id){
+            var el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+        document.querySelectorAll('.modal-overlay').forEach(function(m){ m.style.display='none'; });
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       11. ANIKA REVEAL — override to nuke modals first
+    ════════════════════════════════════════════════════════════════════════ */
+    var _origReveal = window.runAnikaReveal;
+    window.runAnikaReveal = function () {
+        nukeAllModals();
+        if (typeof hideAllScreens === 'function') hideAllScreens();
+        else if (window.hideAllScreens) window.hideAllScreens();
+        if (_origReveal) _origReveal();
+    };
+
+    /* ════════════════════════════════════════════════════════════════════════
+       12. closeModals — extend to include r3sm
+    ════════════════════════════════════════════════════════════════════════ */
+    var _origClose = window.closeModals;
+    window.closeModals = function () {
+        if (_origClose) _origClose();
+        window.r3Close();
+    };
+
+    /* ════════════════════════════════════════════════════════════════════════
+       HELPERS
+    ════════════════════════════════════════════════════════════════════════ */
+    function row(label, value) {
+        return '<tr><td style="padding:7px 0;color:#64748b;font-size:.73rem;width:200px;">' + label + '</td>' +
+               '<td style="padding:7px 0;color:#e2e8f0;font-size:.79rem;">' + value + '</td></tr>';
+    }
+    function box(color, label, content) {
+        return '<div style="background:rgba(0,0,0,.2);border:1px solid ' + color + '44;border-radius:4px;' +
+            'padding:12px 16px;margin-top:10px;">' +
+            '<div style="color:' + color + ';font-size:.69rem;letter-spacing:.12em;margin-bottom:5px;">' + label + '</div>' +
+            '<div style="color:#e2e8f0;font-size:.8rem;line-height:1.6;">' + content + '</div></div>';
+    }
+    function hypBtn() {
+        return 'flex:1;min-width:220px;padding:9px 13px;text-align:left;' +
+            'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);' +
+            'color:#e2e8f0;font-family:inherit;font-size:.73rem;border-radius:3px;cursor:pointer;';
+    }
+
+    console.log('[R3] Clean fix script loaded OK.');
+})();
+
+    </script>
+</body>
+</html>
